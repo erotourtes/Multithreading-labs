@@ -1,3 +1,15 @@
+/**
+ * Program header: «ПРОГРАМНЕ ЗАБЕЗПЕЧЕННЯ ВИСОКОПРОДУКТИВНИХ КОМП’ЮТЕРНИХ
+ * СИСТЕМ.»
+ * Lab 1: «Програмування ̈́потоків (ЛР1)»
+ * Functions:
+ * - F1: 1.20 D = MIN(A + B) * (B + C) *(MA*MD)
+ * - F2: 2.24 MG = SORT(MF - MH * MK)
+ * - F3: 3.25 S = (O + P + V)*(MR * MS)
+ * Name: Сірик Максим Олександрович
+ * Date: 15.02.2025
+ */
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -13,23 +25,28 @@ class Data {
     private static int N = 0;
     private static MethodType methodType = MethodType.Manual;
 
-    enum MethodType {
-        Manual(0), File(1), AllElementsSame(2), Random(3);
-        public final int value;
+    public static String THREAD_NAME_1 = "T1";
+    public static String THREAD_NAME_2 = "T2";
+    public static String THREAD_NAME_3 = "T3";
 
-        MethodType(int type) {
-            value = type;
-        }
+    public static Data.Matrix calculateF1(Data.Vector A, Data.Vector B,
+                                          Data.Vector C, Data.Matrix MA,
+                                          Data.Matrix MD) {
+        return B.sum(C)
+                .scalarMultiply(A.sum(B).min())
+                .toMatrix()
+                .multiply(MA.multiply(MD));
+    }
 
-        public static MethodType fromValue(int value) {
-            assert value >= 0 && value <= 3 : "Invalid input type";
-            for (MethodType method : values()) {
-                if (method.value == value) {
-                    return method;
-                }
-            }
-            return MethodType.Manual;
-        }
+    public static Data.Matrix calculateF2(Data.Matrix MF, Data.Matrix MH,
+                                          Data.Matrix MK) {
+        return MF.subtract(MH.multiply(MK)).sort();
+    }
+
+    public static Data.Matrix calculateF3(Data.Vector O, Data.Vector P,
+                                          Data.Vector V,
+                                          Data.Matrix MR, Data.Matrix MS) {
+        return O.sum(P).sum(V).toMatrix().multiply(MR.multiply(MS));
     }
 
     public static void readInput() {
@@ -57,26 +74,23 @@ class Data {
         return N <= 3;
     }
 
-    public static Vector vectorGet(String name) {
+    public static Vector vectorGet(String name, String threadName) {
         var scanner = new Scanner(System.in);
         switch (methodType) {
             case Manual -> {
                 if (name != null) {
-                    System.out.printf("\nEnter input for the vector(%s): ",
-                            name);
+                    System.out.printf("\n[%s] Enter input for the vector(%s): ", threadName, name);
                 }
                 var vector = vectorFromString(scanner.nextLine());
                 return new Vector(vector);
             }
             case File -> {
-                System.out.printf("\nEnter a file path with vector(%s): ",
-                        name);
+                System.out.printf("\n[%s] Enter a file path with vector(%s): ", threadName, name);
                 var path = scanner.nextLine();
                 return vectorFromFile(path);
             }
             case AllElementsSame -> {
-                System.out.printf("\nEnter a number to fill the vector(%s): "
-                        , name);
+                System.out.printf("\n[%s] Enter a number to fill the vector(%s): ", threadName, name);
                 var number = scanner.nextInt();
                 scanner.nextLine();
                 return vectorFromNumber(number);
@@ -100,15 +114,17 @@ class Data {
     }
 
     private static Vector vectorFromRandom() {
-        var vector = IntStream.range(0, N).map((i) -> random.nextInt()).toArray();
+        var vector = IntStream.range(0, N)
+                .map((i) -> random.nextInt())
+                .toArray();
         return new Vector(vector);
     }
 
-    public static Matrix matrixGet(String name) {
+    public static Matrix matrixGet(String name, String threadName) {
         var scanner = new Scanner(System.in);
         switch (methodType) {
             case Manual -> {
-                System.out.printf("\nEnter input for the matrix(%s): ", name);
+                System.out.printf("\n[%s] Enter input for the matrix(%s): ", threadName, name);
                 var vector = vectorFromString(scanner.nextLine(), N * N);
                 var matrix = IntStream.range(0, N)
                         .mapToObj(i -> Arrays.copyOfRange(vector, i * N,
@@ -118,13 +134,12 @@ class Data {
                 return new Matrix(matrix);
             }
             case File -> {
-                System.out.printf("\nEnter a file path with matrix(%s): ",
-                        name);
+                System.out.printf("\n[%s]Enter a file path with matrix(%s): ", threadName, name);
                 var path = scanner.nextLine();
                 return matrixFromFile(path);
             }
             case AllElementsSame -> {
-                System.out.println("Enter a number to fill the matrix\n");
+                System.out.printf("\n[%s] Enter a number to fill the matrix(%s) ", threadName, name);
                 var number = scanner.nextInt();
                 scanner.nextLine();
                 return matrixFromNumber(number);
@@ -172,6 +187,25 @@ class Data {
         return new Matrix(matrix);
     }
 
+    enum MethodType {
+        Manual(0), File(1), AllElementsSame(2), Random(3);
+        public final int value;
+
+        MethodType(int type) {
+            value = type;
+        }
+
+        public static MethodType fromValue(int value) {
+            assert value >= 0 && value <= 3 : "Invalid input type";
+            for (MethodType method : values()) {
+                if (method.value == value) {
+                    return method;
+                }
+            }
+            return MethodType.Manual;
+        }
+    }
+
     public static class Vector {
         private final int[] data;
 
@@ -180,8 +214,7 @@ class Data {
         }
 
         public Vector sum(Vector other) {
-            assert this.data.length == other.data.length : "Can't sum " +
-                    "different len vectors";
+            assert this.data.length == other.data.length : "Can't sum different len vectors";
             var sum = IntStream.range(0, N)
                     .map(i -> data[i] + other.data[i])
                     .toArray();
@@ -261,55 +294,64 @@ class Data {
     }
 }
 
-class T1 implements Runnable {
+class RunT1 implements Runnable {
     @Override
     public void run() {
-        var res = F1();
-        System.out.printf("\nResult of F1 is \n%s;", res.toString());
-    }
+        System.out.printf("Thread [%s] is started", Data.THREAD_NAME_1);
 
-    private Data.Matrix F1() {
-        var A = Data.vectorGet("A");
-        var B = Data.vectorGet("B");
-        var C = Data.vectorGet("C");
-        var MA = Data.matrixGet("MA");
-        var MD = Data.matrixGet("MD");
-        return B.sum(C)
-                .scalarMultiply(A.sum(B).min())
-                .toMatrix()
-                .multiply(MA.multiply(MD));
+        // Початок вводу даних
+        var A = Data.vectorGet("A", Data.THREAD_NAME_1);
+        var B = Data.vectorGet("B", Data.THREAD_NAME_1);
+        var C = Data.vectorGet("C", Data.THREAD_NAME_1);
+        var MA = Data.matrixGet("MA", Data.THREAD_NAME_1);
+        var MD = Data.matrixGet("MD", Data.THREAD_NAME_1);
+        // Обрахунок формули F1
+        var res = Data.calculateF1(A, B, C, MA, MD);
+        // Вивід результату обрахунків
+        System.out.printf("\n[%s] Result of F1 is \n%s;", Data.THREAD_NAME_1,
+                res.toString());
+
+        System.out.printf("Thread [%s] is finished", Data.THREAD_NAME_1);
     }
 }
 
-class T2 implements Runnable {
+class RunT2 implements Runnable {
     @Override
     public void run() {
-        var res = F2();
-        System.out.printf("\nResult of F2 is \n%s;", res.toString());
-    }
+        System.out.printf("Thread [%s] is started", Data.THREAD_NAME_2);
 
-    private Data.Matrix F2() {
-        var MF = Data.matrixGet("MF");
-        var MH = Data.matrixGet("MH");
-        var MK = Data.matrixGet("MK");
-        return MF.subtract(MH.multiply(MK)).sort();
+        // Початок вводу даних
+        var MF = Data.matrixGet("MF", Data.THREAD_NAME_2);
+        var MH = Data.matrixGet("MH", Data.THREAD_NAME_2);
+        var MK = Data.matrixGet("MK", Data.THREAD_NAME_2);
+        // Обрахунок формули F2
+        var res = Data.calculateF2(MF, MH, MK);
+        // Вивід результату обрахунків
+        System.out.printf("\n[%s] Result of F2 is \n%s;", Data.THREAD_NAME_2,
+                res.toString());
+
+        System.out.printf("Thread [%s] is finished", Data.THREAD_NAME_2);
     }
 }
 
-class T3 implements Runnable {
+class RunT3 implements Runnable {
     @Override
     public void run() {
-        var res = F2();
-        System.out.printf("\nResult of F2 is \n%s;", res.toString());
-    }
+        System.out.printf("Thread [%s] is started", Data.THREAD_NAME_3);
 
-    private Data.Matrix F2() {
-        var O = Data.vectorGet("O");
-        var P = Data.vectorGet("P");
-        var V = Data.vectorGet("V");
-        var MR = Data.matrixGet("MR");
-        var MS = Data.matrixGet("MS");
-        return O.sum(P).sum(V).toMatrix().multiply(MR.multiply(MS));
+        // Початок вводу даних
+        var O = Data.vectorGet("O", Data.THREAD_NAME_3);
+        var P = Data.vectorGet("P", Data.THREAD_NAME_3);
+        var V = Data.vectorGet("V", Data.THREAD_NAME_3);
+        var MR = Data.matrixGet("MR", Data.THREAD_NAME_3);
+        var MS = Data.matrixGet("MS", Data.THREAD_NAME_3);
+        // Обрахунок формули F3
+        var res = Data.calculateF3(O, P, V, MR, MS);
+        // Вивід результату обрахунків
+        System.out.printf("\n[%s] Result of F2 is \n%s;", Data.THREAD_NAME_3,
+                res.toString());
+
+        System.out.printf("Thread [%s] is finished", Data.THREAD_NAME_3);
     }
 }
 
@@ -317,17 +359,17 @@ public class Main {
     public static void Lab1() throws InterruptedException {
         Data.readInput();
 
-        var t1 = new Thread(new T1());
-        var t2 = new Thread(new T2());
-        var t3 = new Thread(new T3());
+        var T1 = new Thread(new RunT1());
+        var T2 = new Thread(new RunT2());
+        var T3 = new Thread(new RunT3());
 
-        t1.start();
-        t2.start();
-        t3.start();
+        T1.start();
+        T2.start();
+        T3.start();
 
-        t1.join();
-        t2.join();
-        t3.join();
+        T1.join();
+        T2.join();
+        T3.join();
     }
 
     public static void main(String[] args) throws InterruptedException {
