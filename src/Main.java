@@ -359,6 +359,8 @@ public class Main {
     public static void Lab1() throws InterruptedException {
         Data.readInput();
 
+        var start = System.currentTimeMillis();
+
         var T1 = new Thread(new RunT1());
         var T2 = new Thread(new RunT2());
         var T3 = new Thread(new RunT3());
@@ -370,6 +372,9 @@ public class Main {
         T1.join();
         T2.join();
         T3.join();
+        var end = System.currentTimeMillis();
+        System.out.println();
+        System.out.println(end - start);
     }
 
     public static void main(String[] args) throws InterruptedException {
