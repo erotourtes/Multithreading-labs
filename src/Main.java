@@ -1,116 +1,93 @@
 /**
- * Program header: «ПРОГРАМНЕ ЗАБЕЗПЕЧЕННЯ ВИСОКОПРОДУКТИВНИХ КОМП’ЮТЕРНИХ
- * СИСТЕМ.»
- * Lab 1: «Програмування ̈́потоків (ЛР1)»
- * Functions:
- * - F1: 1.20 D = MIN(A + B) * (B + C) *(MA*MD)
- * - F2: 2.24 MG = SORT(MF - MH * MK)
- * - F3: 3.25 S = (O + P + V)*(MR * MS)
+ * Program header: «ПРОГРАМНЕ ЗАБЕЗПЕЧЕННЯ ВИСОКОПРОДУКТИВНИХ КОМП’ЮТЕРНИХ СИСТЕМ.»
+ * Lab 2: «Програмування для комп’ютерних систем зі спільною пам’яттю»
+ * Function:
+ * - MU = (MD * MC) * d + max(Z) * MR
  * Name: Сірик Максим Олександрович
- * Date: 15.02.2025
+ * Date: 01.03.2025
  */
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 class Data {
     private static final Random random = new Random();
 
-    private static int N = 0;
-    private static MethodType methodType = MethodType.Manual;
+    private static int N;
+    private static int H;
 
-    public static String THREAD_NAME_1 = "T1";
-    public static String THREAD_NAME_2 = "T2";
-    public static String THREAD_NAME_3 = "T3";
+    private static final int AMOUNT_OF_THREADS = 4;
 
-    public static Data.Matrix calculateF1(Data.Vector A, Data.Vector B,
-                                          Data.Vector C, Data.Matrix MA,
-                                          Data.Matrix MD) {
-        return B.sum(C)
-                .scalarMultiply(A.sum(B).min())
-                .toMatrix()
-                .multiply(MA.multiply(MD));
-    }
+    public static final String THREAD_NAME_1 = "T1";
+    public static final String THREAD_NAME_2 = "T2";
+    public static final String THREAD_NAME_3 = "T3";
+    public static final String THREAD_NAME_4 = "T4";
 
-    public static Data.Matrix calculateF2(Data.Matrix MF, Data.Matrix MH,
-                                          Data.Matrix MK) {
-        return MF.subtract(MH.multiply(MK)).sort();
-    }
+    public static AtomicInteger d = new AtomicInteger(0);
+    public static Matrix MC, MR, MD;
+    public static Vector Z;
 
-    public static Data.Matrix calculateF3(Data.Vector O, Data.Vector P,
-                                          Data.Vector V,
-                                          Data.Matrix MR, Data.Matrix MS) {
-        return O.sum(P).sum(V).toMatrix().multiply(MR.multiply(MS));
+    public static CyclicBarrier CB1 = new CyclicBarrier(4);
+    public static ReentrantLock L1 = new ReentrantLock();
+    public static Semaphore Sem1 = new Semaphore(-2);
+
+
+    public static AtomicInteger z = new AtomicInteger(Integer.MIN_VALUE);
+
+    public static void maxZ(int zi) {
+        L1.lock();
+        z.set(Math.max(z.get(), zi));
+        L1.unlock();
     }
 
     public static void readInput() {
         var scanner = new Scanner(System.in);
         System.out.println("Enter N: ");
         N = scanner.nextInt();
+        H = N / AMOUNT_OF_THREADS; // Floor round and distribute reminder to first k elements
         scanner.nextLine();
-        if (isManualInput()) {
-            methodType = MethodType.Manual;
-            return;
-        }
-
-        System.out.println("""
-                Enter:
-                1 - for files input;
-                2 - for all elements are the same input;
-                3 - random input;
-                """);
-        var method = scanner.nextInt();
-        scanner.nextLine();
-        methodType = MethodType.fromValue(method);
     }
 
     private static boolean isManualInput() {
         return N <= 3;
     }
 
-    public static Vector vectorGet(String name, String threadName) {
+    private static Range getRange(int partOneBased) {
+        int reminder = N % AMOUNT_OF_THREADS;
+        int i = partOneBased - 1;
+        int start = i * H + Math.min(i, reminder);
+        int end = start + H + (i < reminder ? 1 : 0);
+        return new Range(start, end);
+    }
+
+    public static int scalarGet(String name, String threadName) {
         var scanner = new Scanner(System.in);
-        switch (methodType) {
-            case Manual -> {
-                if (name != null) {
-                    System.out.printf("\n[%s] Enter input for the vector(%s): ", threadName, name);
-                }
-                var vector = vectorFromString(scanner.nextLine());
-                return new Vector(vector);
-            }
-            case File -> {
-                System.out.printf("\n[%s] Enter a file path with vector(%s): ", threadName, name);
-                var path = scanner.nextLine();
-                return vectorFromFile(path);
-            }
-            case AllElementsSame -> {
-                System.out.printf("\n[%s] Enter a number to fill the vector(%s): ", threadName, name);
-                var number = scanner.nextInt();
-                scanner.nextLine();
-                return vectorFromNumber(number);
-            }
-            case Random -> {
-                return vectorFromRandom();
-            }
-            default -> throw new RuntimeException();
+        if (isManualInput()) {
+            System.out.printf("\n[%s] Enter input for the scalar(%s): ", threadName, name);
+            return scanner.nextInt();
         }
 
+        return random.nextInt();
     }
 
-    private static Vector vectorFromFile(String path) {
-        return new Vector(matrixFromFile(path).data[0]);
-    }
+    public static Vector vectorGet(String name, String threadName) {
+        var scanner = new Scanner(System.in);
+        if (isManualInput()) {
+            if (name != null) {
+                System.out.printf("\n[%s] Enter input for the vector(%s): ", threadName, name);
+            }
+            var vector = vectorFromString(scanner.nextLine());
+            return new Vector(vector);
+        }
 
-    private static Vector vectorFromNumber(int number) {
-        var vector = new int[N];
-        Arrays.fill(vector, number);
-        return new Vector(vector);
+        return vectorFromRandom();
     }
 
     private static Vector vectorFromRandom() {
@@ -122,45 +99,17 @@ class Data {
 
     public static Matrix matrixGet(String name, String threadName) {
         var scanner = new Scanner(System.in);
-        switch (methodType) {
-            case Manual -> {
-                System.out.printf("\n[%s] Enter input for the matrix(%s): ", threadName, name);
-                var vector = vectorFromString(scanner.nextLine(), N * N);
-                var matrix = IntStream.range(0, N)
-                        .mapToObj(i -> Arrays.copyOfRange(vector, i * N,
-                                (i + 1) * N))
-                        .toArray(int[][]::new);
-
-                return new Matrix(matrix);
-            }
-            case File -> {
-                System.out.printf("\n[%s]Enter a file path with matrix(%s): ", threadName, name);
-                var path = scanner.nextLine();
-                return matrixFromFile(path);
-            }
-            case AllElementsSame -> {
-                System.out.printf("\n[%s] Enter a number to fill the matrix(%s) ", threadName, name);
-                var number = scanner.nextInt();
-                scanner.nextLine();
-                return matrixFromNumber(number);
-            }
-            case Random -> {
-                return matrixFromRandom();
-            }
-        }
-
-        return new Matrix(new int[0][0]);
-    }
-
-    private static Matrix matrixFromFile(String path) {
-        try {
-            var matrix = Files.lines(Paths.get(path))
-                    .map(Data::vectorFromString)
+        if (isManualInput()) {
+            System.out.printf("\n[%s] Enter input for the matrix(%s): ", threadName, name);
+            var vector = vectorFromString(scanner.nextLine(), N * N);
+            var matrix = IntStream.range(0, N)
+                    .mapToObj(i -> Arrays.copyOfRange(vector, i * N, (i + 1) * N))
                     .toArray(int[][]::new);
+
             return new Matrix(matrix);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
+
+        return matrixFromRandom();
     }
 
     private static int[] vectorFromString(String line) {
@@ -173,37 +122,11 @@ class Data {
         return Arrays.stream(nums).mapToInt(Integer::parseInt).toArray();
     }
 
-    private static Matrix matrixFromNumber(int number) {
-        var matrix = IntStream.range(0, N)
-                .mapToObj((i) -> vectorFromNumber(number).data)
-                .toArray(int[][]::new);
-        return new Matrix(matrix);
-    }
-
     private static Matrix matrixFromRandom() {
         var matrix = IntStream.range(0, N)
                 .mapToObj((i) -> vectorFromRandom().data)
                 .toArray(int[][]::new);
         return new Matrix(matrix);
-    }
-
-    enum MethodType {
-        Manual(0), File(1), AllElementsSame(2), Random(3);
-        public final int value;
-
-        MethodType(int type) {
-            value = type;
-        }
-
-        public static MethodType fromValue(int value) {
-            assert value >= 0 && value <= 3 : "Invalid input type";
-            for (MethodType method : values()) {
-                if (method.value == value) {
-                    return method;
-                }
-            }
-            return MethodType.Manual;
-        }
     }
 
     public static class Vector {
@@ -213,30 +136,15 @@ class Data {
             this.data = data;
         }
 
-        public Vector sum(Vector other) {
-            assert this.data.length == other.data.length : "Can't sum different len vectors";
-            var sum = IntStream.range(0, N)
-                    .map(i -> data[i] + other.data[i])
-                    .toArray();
-            return new Vector(sum);
+        public int max(int partOneBased) {
+            var range = Data.getRange(partOneBased);
+            return this.max(range.startIncl, range.endExcl);
         }
 
-        public int min() {
-            assert this.data.length > 0 : "Min on empty array";
-            return Arrays.stream(this.data).min().getAsInt();
-        }
-
-        public Vector scalarMultiply(int scalar) {
-            var mult = Arrays.stream(this.data)
-                    .map(datum -> datum * scalar)
-                    .toArray();
-            return new Vector(mult);
-        }
-
-        public Matrix toMatrix() {
-            var matrix = new int[1][data.length];
-            matrix[0] = this.data;
-            return new Matrix(matrix);
+        public int max(int startInc, int endExcl) {
+            assert this.data.length > 0 : "Max on empty array";
+            assert startInc >= 0 && endExcl <= this.data.length : "Wrong boundaries";
+            return Arrays.stream(this.data, startInc, endExcl).max().getAsInt();
         }
     }
 
@@ -247,10 +155,13 @@ class Data {
             this.data = data;
         }
 
-        Matrix multiply(Matrix other) {
+        Matrix multiply(Matrix other, int partOneBased) {
             var m = data.length;
             var n = data[0].length;
-            var p = other.data[0].length;
+
+            var range = Data.getRange(partOneBased);
+            int offset = range.startIncl;
+            int p = range.endExcl - range.startIncl;
             assert n == other.data.length : "Can't multiply matrices";
 
             var newMatrix = new int[m][p];
@@ -258,7 +169,7 @@ class Data {
             for (var i = 0; i < m; i++) {
                 for (var j = 0; j < n; j++) {
                     for (var k = 0; k < p; k++) {
-                        newMatrix[i][k] += data[i][j] * other.data[j][k];
+                        newMatrix[i][k] += data[i][j] * other.data[j][k + offset];
                     }
                 }
             }
@@ -266,22 +177,31 @@ class Data {
             return new Matrix(newMatrix);
         }
 
-        public Matrix subtract(Matrix other) {
+        Matrix scalarMultiply(int scalar) {
+            return this.scalarMultiply(scalar, -1);
+        }
+
+        Matrix scalarMultiply(int scalar, int partOneBased) {
+            var matrix = Arrays.stream(data).map(datum -> {
+                var range = Data.getRange(partOneBased);
+                var isWholeArray = partOneBased < 1;
+                var stream = isWholeArray ? Arrays.stream(datum) : Arrays.stream(datum, range.startIncl, range.endExcl);
+                return stream.map(k -> k * scalar).toArray();
+            }).toArray(int[][]::new);
+            return new Matrix(matrix);
+        }
+
+        public Matrix add(Matrix other) {
+            assert data.length == other.data.length : "Mismatch in len " + other.data.length + " Expected " + data.length;
+            assert data[0].length == other.data[0].length : "Mismatch in len2 " + other.data[0].length + " Expected " + data[0].length;
+
             var matrix = IntStream.range(0, data.length)
                     .mapToObj(i -> IntStream.range(0, data[i].length)
-                            .map(j -> data[i][j] - other.data[i][j])
+                            .map(j -> data[i][j] + other.data[i][j])
                             .toArray())
                     .toArray(int[][]::new);
             return new Matrix(matrix);
         }
-
-        public Matrix sort() {
-            var sorted = Arrays.stream(data)
-                    .map(v -> Arrays.stream(v).sorted().toArray())
-                    .toArray(int[][]::new);
-            return new Matrix(sorted);
-        }
-
 
         @Override
         public String toString() {
@@ -292,66 +212,149 @@ class Data {
                     .collect(Collectors.joining("\n"));
         }
     }
+
+    record Range(int startIncl, int endExcl) {
+    }
 }
 
 class RunT1 implements Runnable {
     @Override
     public void run() {
-        System.out.printf("Thread [%s] is started", Data.THREAD_NAME_1);
+        System.out.printf("Thread [%s] is started\n", Data.THREAD_NAME_1);
 
-        // Початок вводу даних
-        var A = Data.vectorGet("A", Data.THREAD_NAME_1);
-        var B = Data.vectorGet("B", Data.THREAD_NAME_1);
-        var C = Data.vectorGet("C", Data.THREAD_NAME_1);
-        var MA = Data.matrixGet("MA", Data.THREAD_NAME_1);
-        var MD = Data.matrixGet("MD", Data.THREAD_NAME_1);
-        // Обрахунок формули F1
-        var res = Data.calculateF1(A, B, C, MA, MD);
-        // Вивід результату обрахунків
-        System.out.printf("\n[%s] Result of F1 is \n%s;", Data.THREAD_NAME_1,
-                res.toString());
+        try {
+            // Початок вводу даних
+            Data.d.set(Data.scalarGet("d", Data.THREAD_NAME_1));
+            // Сигнал про введення
+            // Чекати на введення
+            Data.CB1.await();
+            // Обчислення zi
+            int zi = Data.Z.max(1);
+            // Обчислення Z
+            Data.maxZ(zi);
+            // Сигнал про обчислення
+            Data.CB1.await();
+            // Копіювання d
+            int d1 = Data.d.get();
+            // Копіювання z
+            int z1 = Data.z.get();
+            // Обрахунок MUh
+            Data.Matrix MUh = Data.MD.multiply(Data.MC, 1)
+                    .scalarMultiply(d1)
+                    .add(Data.MR.scalarMultiply(z1, 1));
+            // Чекати завершення обрахунку MUh
+            Data.Sem1.acquire();
+            // Вивід результату обрахунків
+            System.out.printf("\n[%s] Result is \n%s;", Data.THREAD_NAME_1, MUh.toString());
+        } catch (Exception e) {
+            throw new RuntimeException(e.toString());
+        }
 
-        System.out.printf("Thread [%s] is finished", Data.THREAD_NAME_1);
+        System.out.printf("Thread [%s] is finished\n", Data.THREAD_NAME_1);
     }
 }
 
 class RunT2 implements Runnable {
     @Override
     public void run() {
-        System.out.printf("Thread [%s] is started", Data.THREAD_NAME_2);
+        System.out.printf("Thread [%s] is started\n", Data.THREAD_NAME_2);
 
-        // Початок вводу даних
-        var MF = Data.matrixGet("MF", Data.THREAD_NAME_2);
-        var MH = Data.matrixGet("MH", Data.THREAD_NAME_2);
-        var MK = Data.matrixGet("MK", Data.THREAD_NAME_2);
-        // Обрахунок формули F2
-        var res = Data.calculateF2(MF, MH, MK);
-        // Вивід результату обрахунків
-        System.out.printf("\n[%s] Result of F2 is \n%s;", Data.THREAD_NAME_2,
-                res.toString());
+        try {
+            // Чекати на введення
+            Data.CB1.await();
+            // Обчислення zi
+            int zi = Data.Z.max(2);
+            // Обчислення Z
+            Data.maxZ(zi);
+            // Сигнал про обчислення
+            Data.CB1.await();
+            // Копіювання d
+            int d2 = Data.d.get();
+            // Копіювання z
+            int z2 = Data.z.get();
+            // Обрахунок MUh
+//            Data.Matrix MUh = Data.MD.multiply(Data.MC, 2)
+//                    .scalarMultiply(d2, -1)
+//                    .add(Data.MR.scalarMultiply(z2, 2));
+            // Сигнал про завершення обчислення MUн
+            Data.Sem1.release();
+        } catch (Exception e) {
+            throw new RuntimeException(e.toString());
+        }
 
-        System.out.printf("Thread [%s] is finished", Data.THREAD_NAME_2);
+        System.out.printf("Thread [%s] is finished\n", Data.THREAD_NAME_2);
     }
 }
 
 class RunT3 implements Runnable {
     @Override
     public void run() {
-        System.out.printf("Thread [%s] is started", Data.THREAD_NAME_3);
+        System.out.printf("Thread [%s] is started\n", Data.THREAD_NAME_3);
 
-        // Початок вводу даних
-        var O = Data.vectorGet("O", Data.THREAD_NAME_3);
-        var P = Data.vectorGet("P", Data.THREAD_NAME_3);
-        var V = Data.vectorGet("V", Data.THREAD_NAME_3);
-        var MR = Data.matrixGet("MR", Data.THREAD_NAME_3);
-        var MS = Data.matrixGet("MS", Data.THREAD_NAME_3);
-        // Обрахунок формули F3
-        var res = Data.calculateF3(O, P, V, MR, MS);
-        // Вивід результату обрахунків
-        System.out.printf("\n[%s] Result of F2 is \n%s;", Data.THREAD_NAME_3,
-                res.toString());
+        try {
+            // Початок вводу даних
+            Data.MC = Data.matrixGet("MC", Data.THREAD_NAME_3);
+            Data.MR = Data.matrixGet("MR", Data.THREAD_NAME_3);
+            // Сигнал про введення
+            // Чекати на введення
+            Data.CB1.await();
+            // Обчислення zi
+            int zi = Data.Z.max(3);
+            // Обчислення Z
+            Data.maxZ(zi);
+            // Сигнал про обчислення
+            Data.CB1.await();
+            // Копіювання d
+            int d3 = Data.d.get();
+            // Копіювання z
+            int z3 = Data.z.get();
+            // Обрахунок MUh
+//            Data.Matrix MUh = Data.MD.multiply(Data.MC, 3)
+//                    .scalarMultiply(d3, -1)
+//                    .add(Data.MR.scalarMultiply(z3, 3));
+            // Сигнал про завершення обчислення MUн
+            Data.Sem1.release();
+        } catch (Exception e) {
+            throw new RuntimeException(e.toString());
+        }
 
-        System.out.printf("Thread [%s] is finished", Data.THREAD_NAME_3);
+        System.out.printf("Thread [%s] is finished\n", Data.THREAD_NAME_3);
+    }
+}
+
+class RunT4 implements Runnable {
+    @Override
+    public void run() {
+        System.out.printf("Thread [%s] is started\n", Data.THREAD_NAME_4);
+
+        try {
+            // Початок вводу даних
+            Data.Z = Data.vectorGet("Z", Data.THREAD_NAME_4);
+            Data.MD = Data.matrixGet("MD", Data.THREAD_NAME_4);
+            // Сигнал про введення
+            // Чекати на введення
+            Data.CB1.await();
+            // Обчислення zi
+            int zi = Data.Z.max(4);
+            // Обчислення Z
+            Data.maxZ(zi);
+            // Сигнал про обчислення
+            Data.CB1.await();
+            // Копіювання d
+            int d4 = Data.d.get();
+            // Копіювання z
+            int z4 = Data.z.get();
+            // Обрахунок MUh
+//            Data.Matrix MUh = Data.MD.multiply(Data.MC, 4)
+//                    .scalarMultiply(d4, -1)
+//                    .add(Data.MR.scalarMultiply(z4, 4));
+            // Сигнал про завершення обчислення MUн
+            Data.Sem1.release();
+        } catch (Exception e) {
+            throw new RuntimeException(e.toString());
+        }
+
+        System.out.printf("Thread [%s] is finished\n", Data.THREAD_NAME_4);
     }
 }
 
@@ -364,14 +367,18 @@ public class Main {
         var T1 = new Thread(new RunT1());
         var T2 = new Thread(new RunT2());
         var T3 = new Thread(new RunT3());
+        var T4 = new Thread(new RunT4());
 
         T1.start();
         T2.start();
         T3.start();
+        T4.start();
 
         T1.join();
         T2.join();
         T3.join();
+        T4.join();
+
         var end = System.currentTimeMillis();
         System.out.println();
         System.out.println(end - start);
