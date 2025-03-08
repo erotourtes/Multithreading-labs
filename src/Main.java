@@ -4,7 +4,7 @@
  * Function:
  * - MU = (MD * MC) * d + max(Z) * MR
  * Name: Сірик Максим Олександрович
- * Date: 01.03.2025
+ * Date: 08.03.2025
  */
 
 import java.util.Arrays;
@@ -16,12 +16,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 class Data {
-    private static final Random random = new Random();
-
-    private static int N;
-    private static int H;
+    private static final Random random = new Random(0);
 
     private static final int AMOUNT_OF_THREADS = 4;
 
@@ -30,16 +28,24 @@ class Data {
     public static final String THREAD_NAME_3 = "T3";
     public static final String THREAD_NAME_4 = "T4";
 
+    private static int N;
+    private static int H;
+
     public static AtomicInteger d = new AtomicInteger(0);
-    public static Matrix MC, MR, MD;
-    public static Vector Z;
+    public static Matrix MC, MR, MD = null;
+    public static Vector Z = null;
 
     public static CyclicBarrier CB1 = new CyclicBarrier(4);
     public static ReentrantLock L1 = new ReentrantLock();
     public static Semaphore Sem1 = new Semaphore(-2);
-
-
     public static AtomicInteger z = new AtomicInteger(Integer.MIN_VALUE);
+    public static Matrix MU = null;
+
+    public static Matrix calculate(int d, int z, int partOneBased) {
+        return Data.MD.multiply(Data.MC, partOneBased)
+                .scalarMultiply(d)
+                .add(Data.MR.scalarMultiply(z, partOneBased));
+    }
 
     public static void maxZ(int zi) {
         L1.lock();
@@ -52,11 +58,12 @@ class Data {
         System.out.println("Enter N: ");
         N = scanner.nextInt();
         H = N / AMOUNT_OF_THREADS; // Floor round and distribute reminder to first k elements
+        MU = new Matrix(new int[N][N]);
         scanner.nextLine();
     }
 
     private static boolean isManualInput() {
-        return N <= 3;
+        return N <= 4;
     }
 
     private static Range getRange(int partOneBased) {
@@ -70,8 +77,13 @@ class Data {
     public static int scalarGet(String name, String threadName) {
         var scanner = new Scanner(System.in);
         if (isManualInput()) {
-            System.out.printf("\n[%s] Enter input for the scalar(%s): ", threadName, name);
-            return scanner.nextInt();
+            try {
+                L1.lock();
+                System.out.printf("\n[%s] Enter input for the scalar(%s): ", threadName, name);
+                return scanner.nextInt();
+            } finally {
+                L1.unlock();
+            }
         }
 
         return random.nextInt();
@@ -80,11 +92,16 @@ class Data {
     public static Vector vectorGet(String name, String threadName) {
         var scanner = new Scanner(System.in);
         if (isManualInput()) {
-            if (name != null) {
-                System.out.printf("\n[%s] Enter input for the vector(%s): ", threadName, name);
+            try {
+                L1.lock();
+                if (name != null) {
+                    System.out.printf("\n[%s] Enter input for the vector(%s): ", threadName, name);
+                }
+                var vector = vectorFromString(scanner.nextLine());
+                return new Vector(vector);
+            } finally {
+                L1.unlock();
             }
-            var vector = vectorFromString(scanner.nextLine());
-            return new Vector(vector);
         }
 
         return vectorFromRandom();
@@ -100,13 +117,18 @@ class Data {
     public static Matrix matrixGet(String name, String threadName) {
         var scanner = new Scanner(System.in);
         if (isManualInput()) {
-            System.out.printf("\n[%s] Enter input for the matrix(%s): ", threadName, name);
-            var vector = vectorFromString(scanner.nextLine(), N * N);
-            var matrix = IntStream.range(0, N)
-                    .mapToObj(i -> Arrays.copyOfRange(vector, i * N, (i + 1) * N))
-                    .toArray(int[][]::new);
+            try {
+                L1.lock();
+                System.out.printf("\n[%s] Enter input for the matrix(%s): ", threadName, name);
+                var vector = vectorFromString(scanner.nextLine(), N * N);
+                var matrix = IntStream.range(0, N)
+                        .mapToObj(i -> Arrays.copyOfRange(vector, i * N, (i + 1) * N))
+                        .toArray(int[][]::new);
 
-            return new Matrix(matrix);
+                return new Matrix(matrix);
+            } finally {
+                L1.unlock();
+            }
         }
 
         return matrixFromRandom();
@@ -144,7 +166,9 @@ class Data {
         public int max(int startInc, int endExcl) {
             assert this.data.length > 0 : "Max on empty array";
             assert startInc >= 0 && endExcl <= this.data.length : "Wrong boundaries";
-            return Arrays.stream(this.data, startInc, endExcl).max().getAsInt();
+            return Arrays.stream(this.data, startInc, endExcl)
+                    .max()
+                    .orElse(Integer.MIN_VALUE);
         }
     }
 
@@ -156,12 +180,13 @@ class Data {
         }
 
         Matrix multiply(Matrix other, int partOneBased) {
-            var m = data.length;
-            var n = data[0].length;
-
             var range = Data.getRange(partOneBased);
             int offset = range.startIncl;
-            int p = range.endExcl - range.startIncl;
+            int m = range.endExcl - range.startIncl;
+
+            var n = data[0].length;
+            var p = other.data[0].length;
+
             assert n == other.data.length : "Can't multiply matrices";
 
             var newMatrix = new int[m][p];
@@ -169,7 +194,7 @@ class Data {
             for (var i = 0; i < m; i++) {
                 for (var j = 0; j < n; j++) {
                     for (var k = 0; k < p; k++) {
-                        newMatrix[i][k] += data[i][j] * other.data[j][k + offset];
+                        newMatrix[i][k] += data[i + offset][j] * other.data[j][k];
                     }
                 }
             }
@@ -182,16 +207,27 @@ class Data {
         }
 
         Matrix scalarMultiply(int scalar, int partOneBased) {
-            var matrix = Arrays.stream(data).map(datum -> {
+            Stream<int[]> stream;
+            var isWholeArray = partOneBased < 1;
+            if (isWholeArray) {
+                stream = Arrays.stream(data);
+            } else {
                 var range = Data.getRange(partOneBased);
-                var isWholeArray = partOneBased < 1;
-                var stream = isWholeArray ? Arrays.stream(datum) : Arrays.stream(datum, range.startIncl, range.endExcl);
-                return stream.map(k -> k * scalar).toArray();
-            }).toArray(int[][]::new);
+                stream = Arrays.stream(data, range.startIncl, range.endExcl);
+            }
+            var matrix = stream.map(datum -> Arrays.stream(datum)
+                    .map(k -> k * scalar)
+                    .toArray()).toArray(int[][]::new);
             return new Matrix(matrix);
         }
 
         public Matrix add(Matrix other) {
+            /* If number of tasks is smaller than `AMOUNT_OF_THREADS` */
+            var isThreadIdle = data.length == 0;
+            if (isThreadIdle) {
+                return new Matrix(new int[0][]);
+            }
+
             assert data.length == other.data.length : "Mismatch in len " + other.data.length + " Expected " + data.length;
             assert data[0].length == other.data[0].length : "Mismatch in len2 " + other.data[0].length + " Expected " + data[0].length;
 
@@ -201,6 +237,13 @@ class Data {
                             .toArray())
                     .toArray(int[][]::new);
             return new Matrix(matrix);
+        }
+
+        public void combine(Matrix other, int partOneBased) {
+            var range = Data.getRange(partOneBased);
+            IntStream.range(range.startIncl, range.endExcl).forEach((i) -> {
+                data[i] = other.data[i - range.startIncl];
+            });
         }
 
         @Override
@@ -239,13 +282,12 @@ class RunT1 implements Runnable {
             // Копіювання z
             int z1 = Data.z.get();
             // Обрахунок MUh
-            Data.Matrix MUh = Data.MD.multiply(Data.MC, 1)
-                    .scalarMultiply(d1)
-                    .add(Data.MR.scalarMultiply(z1, 1));
+            Data.Matrix MUh = Data.calculate(d1, z1, 1);
+            Data.MU.combine(MUh, 1);
             // Чекати завершення обрахунку MUh
             Data.Sem1.acquire();
             // Вивід результату обрахунків
-            System.out.printf("\n[%s] Result is \n%s;", Data.THREAD_NAME_1, MUh.toString());
+            System.out.printf("\n[%s] Result is \n%s;\n\n", Data.THREAD_NAME_1, Data.MU.toString());
         } catch (Exception e) {
             throw new RuntimeException(e.toString());
         }
@@ -273,9 +315,8 @@ class RunT2 implements Runnable {
             // Копіювання z
             int z2 = Data.z.get();
             // Обрахунок MUh
-//            Data.Matrix MUh = Data.MD.multiply(Data.MC, 2)
-//                    .scalarMultiply(d2, -1)
-//                    .add(Data.MR.scalarMultiply(z2, 2));
+            Data.Matrix MUh = Data.calculate(d2, z2, 2);
+            Data.MU.combine(MUh, 2);
             // Сигнал про завершення обчислення MUн
             Data.Sem1.release();
         } catch (Exception e) {
@@ -309,9 +350,8 @@ class RunT3 implements Runnable {
             // Копіювання z
             int z3 = Data.z.get();
             // Обрахунок MUh
-//            Data.Matrix MUh = Data.MD.multiply(Data.MC, 3)
-//                    .scalarMultiply(d3, -1)
-//                    .add(Data.MR.scalarMultiply(z3, 3));
+            Data.Matrix MUh = Data.calculate(d3, z3, 3);
+            Data.MU.combine(MUh, 3);
             // Сигнал про завершення обчислення MUн
             Data.Sem1.release();
         } catch (Exception e) {
@@ -345,9 +385,8 @@ class RunT4 implements Runnable {
             // Копіювання z
             int z4 = Data.z.get();
             // Обрахунок MUh
-//            Data.Matrix MUh = Data.MD.multiply(Data.MC, 4)
-//                    .scalarMultiply(d4, -1)
-//                    .add(Data.MR.scalarMultiply(z4, 4));
+            Data.Matrix MUh = Data.calculate(d4, z4, 4);
+            Data.MU.combine(MUh, 4);
             // Сигнал про завершення обчислення MUн
             Data.Sem1.release();
         } catch (Exception e) {
@@ -359,7 +398,7 @@ class RunT4 implements Runnable {
 }
 
 public class Main {
-    public static void Lab1() throws InterruptedException {
+    public static void Lab2() throws InterruptedException {
         Data.readInput();
 
         var start = System.currentTimeMillis();
@@ -381,10 +420,10 @@ public class Main {
 
         var end = System.currentTimeMillis();
         System.out.println();
-        System.out.println(end - start);
+        System.out.printf("Time: %sms", end - start);
     }
 
     public static void main(String[] args) throws InterruptedException {
-        Lab1();
+        Lab2();
     }
 }
