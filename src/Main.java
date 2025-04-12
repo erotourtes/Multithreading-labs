@@ -8,10 +8,7 @@
  */
 
 import java.util.Arrays;
-import java.util.Random;
 import java.util.Scanner;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.IntStream;
 
 class Data {
@@ -35,11 +32,17 @@ class Data {
         return 1;
     }
 
-    private static final ReentrantLock L1 = new ReentrantLock(); // For syncronous input
-
     public static void calculate(int a, int partOneBased) {
         O.multiply(MX.multiplyTransposed(MT, partOneBased))
                 .sum(B.scalarMultiply(a, partOneBased), V, partOneBased);
+    }
+
+    public static void calculateO(int partOneBased) {
+        var Z_MM = Z.toMatrix().multiply(MM, partOneBased);
+        var d = Data.d.get();
+        var range = getRange(partOneBased);
+        range.stream()
+                .forEach((i) -> O.data[i] = d * B.data[i] + Z_MM.data[0][i]);
     }
 
     public static void readInput() {
@@ -49,10 +52,6 @@ class Data {
         V = new Vector(new int[N]);
         O = new Vector(new int[N]);
         scanner.nextLine();
-    }
-
-    private static boolean isManualInput() {
-        return N <= 0;
     }
 
     private static Range getRange(int partOneBased) {
@@ -68,36 +67,11 @@ class Data {
         return new Range(start, end);
     }
 
-    public static int scalarGet(String name, int threadName) {
-        var scanner = new Scanner(System.in);
-        if (isManualInput()) {
-            try {
-                L1.lock();
-                System.out.printf("\n[T%s] Enter input for the scalar(%s): ", threadName, name);
-                return scanner.nextInt();
-            } finally {
-                L1.unlock();
-            }
-        }
-
+    public static int scalarGet() {
         return getFillNumber();
     }
 
-    public static Vector vectorGet(String name, int threadName) {
-        var scanner = new Scanner(System.in);
-        if (isManualInput()) {
-            try {
-                L1.lock();
-                if (name != null) {
-                    System.out.printf("\n[T%s] Enter input for the vector(%s): ", threadName, name);
-                }
-                var vector = vectorFromString(scanner.nextLine());
-                return new Vector(vector);
-            } finally {
-                L1.unlock();
-            }
-        }
-
+    public static Vector vectorGet() {
         return vectorFromFill();
     }
 
@@ -116,34 +90,8 @@ class Data {
         System.out.printf("Thread [T%s] is finished\n", thread);
     }
 
-    public static Matrix matrixGet(String name, int threadName) {
-        var scanner = new Scanner(System.in);
-        if (isManualInput()) {
-            try {
-                L1.lock();
-                System.out.printf("\n[T%s] Enter input for the matrix(%s): ", threadName, name);
-                var vector = vectorFromString(scanner.nextLine(), N * N);
-                var matrix = IntStream.range(0, N)
-                        .mapToObj(i -> Arrays.copyOfRange(vector, i * N, (i + 1) * N))
-                        .toArray(int[][]::new);
-
-                return new Matrix(matrix);
-            } finally {
-                L1.unlock();
-            }
-        }
-
+    public static Matrix matrixGet() {
         return matrixFromFill();
-    }
-
-    private static int[] vectorFromString(String line) {
-        return vectorFromString(line, N);
-    }
-
-    private static int[] vectorFromString(String line, int len) {
-        var nums = line.split("\\s+");
-        assert nums.length == len : "Amount of numbers differ";
-        return Arrays.stream(nums).mapToInt(Integer::parseInt).toArray();
     }
 
     private static Matrix matrixFromFill() {
@@ -151,15 +99,6 @@ class Data {
                 .mapToObj((i) -> vectorFromFill().data)
                 .toArray(int[][]::new);
         return new Matrix(matrix);
-    }
-
-    public static void calculateO(int partOneBased) {
-        var Z_MM = Z.toMatrix().multiply(MM, partOneBased);
-        var d = Data.d.get();
-        var range = getRange(partOneBased);
-        for (int i = range.startIncl; i < range.endExcl; i++) {
-            Data.O.data[i] = d * B.data[i] + Z_MM.data[0][i];
-        }
     }
 
     public static class Vector {
@@ -249,7 +188,6 @@ class Data {
             this.data = data;
         }
 
-
         /**
          * If second matrix split into 3 parts
          * | * * * | * | * * * | = | * |
@@ -297,29 +235,6 @@ class Data {
             }
 
             return new Matrix(newMatrix);
-        }
-
-        public Vector toVector() {
-            var row = data[0];
-            return new Vector(row);
-        }
-
-        public Matrix add(Matrix other) {
-            /* If number of tasks is smaller than `AMOUNT_OF_THREADS` */
-            var isThreadIdle = data.length == 0;
-            if (isThreadIdle) {
-                return new Matrix(new int[0][]);
-            }
-
-            assert data.length == other.data.length : "Mismatch in len " + other.data.length + " Expected " + data.length;
-            assert data[0].length == other.data[0].length : "Mismatch in len2 " + other.data[0].length + " Expected " + data[0].length;
-
-            var matrix = IntStream.range(0, data.length)
-                    .mapToObj(i -> IntStream.range(0, data[i].length)
-                            .map(j -> data[i][j] + other.data[i][j])
-                            .toArray())
-                    .toArray(int[][]::new);
-            return new Matrix(matrix);
         }
     }
 
@@ -378,7 +293,7 @@ class Data {
         }
     }
 
-    private static Monitor.CountDown cd = new Monitor.CountDown(4);
+    private static final Monitor.CountDown cd = new Monitor.CountDown(4);
 
     public static void setDummyValues() {
         d.setSync(5);
@@ -390,7 +305,6 @@ class Data {
         cd.done();
         cd.waitFor();
     }
-
 }
 
 class RunT1 implements Runnable {
@@ -400,9 +314,9 @@ class RunT1 implements Runnable {
 
         try {
             // Початок вводу даних
-            Data.MM = Data.matrixGet("MM", Data.THREAD_1);
-            Data.MX = Data.matrixGet("MX", Data.THREAD_1);
-            Data.B = Data.vectorGet("B", Data.THREAD_1);
+            Data.MM = Data.matrixGet();
+            Data.MX = Data.matrixGet();
+            Data.B = Data.vectorGet();
             // Сигнал про введення
             Data.monitor.in.done();
             // Чекати на введення
@@ -449,7 +363,7 @@ class RunT2 implements Runnable {
 
         try {
             // Початок вводу даних
-            Data.Z = Data.vectorGet("Z", Data.THREAD_2);
+            Data.Z = Data.vectorGet();
             // Сигнал про введення
             Data.monitor.in.done();
             // Чекати на введення
@@ -533,8 +447,8 @@ class RunT4 implements Runnable {
 
         try {
             // Початок вводу даних
-            Data.MT = Data.matrixGet("MT", Data.THREAD_4);
-            Data.d.setSync(Data.scalarGet("d", Data.THREAD_4));
+            Data.MT = Data.matrixGet();
+            Data.d.setSync(Data.scalarGet());
             // Сигнал про введення
             Data.monitor.in.done();
             // Чекати на введення
