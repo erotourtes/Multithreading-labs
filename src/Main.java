@@ -28,6 +28,8 @@ class Data {
     private static int N;
     private static final int AMOUNT_OF_THREADS = 4;
 
+    public static final boolean DEBUG = false;
+
     private static int getFillNumber() {
         return 1;
     }
@@ -38,11 +40,11 @@ class Data {
     }
 
     public static void calculateO(int partOneBased) {
-        var Z_MM = Z.toMatrix().multiply(MM, partOneBased);
+        var Z_MM = Z.multiply(MM, partOneBased);
         var d = Data.d.get();
         var range = getRange(partOneBased);
         range.stream()
-                .forEach((i) -> O.data[i] = d * B.data[i] + Z_MM.data[0][i]);
+                .forEach((i) -> O.data[i] = d * B.data[i] + Z_MM.data[i - range.startIncl]);
     }
 
     public static void readInput() {
@@ -147,6 +149,21 @@ class Data {
             Arrays.sort(data, range.startIncl, range.endExcl);
         }
 
+        public Vector multiply(Matrix matrix, int partOneBased) {
+            assert data.length == matrix.data.length;
+            var n = data.length;
+            var range = getRange(partOneBased);
+            var p = range.getLength();
+            var newVector = new int[p];
+            for (int j = 0; j < n; j++) {
+                for (int k = 0; k < p; k++) {
+                    newVector[k] += data[j] * matrix.data[j][k + range.startIncl];
+                }
+            }
+
+            return new Vector(newVector);
+        }
+
         public Vector multiply(Matrix matrix) {
             assert data.length == matrix.data.length;
             var n = data.length;
@@ -159,12 +176,6 @@ class Data {
             }
 
             return new Vector(newVector);
-        }
-
-        public Matrix toMatrix() {
-            var matrix = new int[1][N];
-            matrix[0] = data;
-            return new Matrix(matrix);
         }
 
         public void sum(Vector vector, Vector out, int partOneBased) {
@@ -199,7 +210,7 @@ class Data {
             int offset = range.startIncl;
             int m = data.length;
             var n = data[0].length;
-            int p = range.endExcl - range.startIncl;
+            int p = range.getLength();
 
             assert n == other.data.length : "Can't multiply matrices";
 
@@ -215,32 +226,15 @@ class Data {
 
             return new Matrix(newMatrix);
         }
-
-        Matrix multiply(Matrix other, int partOneBased) {
-            var range = Data.getRange(partOneBased);
-            int m = range.endExcl - range.startIncl;
-            var n = data[0].length;
-            var p = other.data[0].length;
-
-            assert n == other.data.length : "Can't multiply matrices";
-
-            var newMatrix = new int[m][p];
-
-            for (var i = 0; i < m; i++) {
-                for (var j = 0; j < n; j++) {
-                    for (var k = 0; k < p; k++) {
-                        newMatrix[i][k] += data[i][j] * other.data[j][k];
-                    }
-                }
-            }
-
-            return new Matrix(newMatrix);
-        }
     }
 
     record Range(int startIncl, int endExcl) {
         IntStream stream() {
             return IntStream.range(startIncl, endExcl);
+        }
+
+        int getLength() {
+            return endExcl - startIncl;
         }
     }
 
@@ -293,17 +287,18 @@ class Data {
         }
     }
 
-    private static final Monitor.CountDown cd = new Monitor.CountDown(4);
+    private static final Monitor.CountDown dummyCountDown = new Monitor.CountDown(4);
 
     public static void setDummyValues() {
+        assert Data.DEBUG : "Shouldn't be called if not debugging";
         d.setSync(5);
         B = new Vector(new int[]{6, 7, 6, 8});
         Z = new Vector(new int[]{0, 9, 0, 5});
         MM = new Matrix(new int[][]{{9, 4, 7, 7,}, {2, 4, 1, 0,}, {8, 2, 3, 2,}, {7, 7, 2, 2},});
         MX = new Matrix(new int[][]{{3, 8, 5, 0,}, {5, 5, 0, 8,}, {1, 4, 6, 2,}, {2, 9, 7, 6,},});
         MT = new Matrix(new int[][]{{8, 7, 3, 1,}, {3, 5, 4, 5,}, {3, 4, 7, 0,}, {2, 3, 5, 5,},});
-        cd.done();
-        cd.waitFor();
+        dummyCountDown.done();
+        dummyCountDown.waitFor();
     }
 }
 
@@ -321,7 +316,7 @@ class RunT1 implements Runnable {
             Data.monitor.in.done();
             // Чекати на введення
             Data.monitor.in.waitFor();
-            Data.setDummyValues();
+            if (Data.DEBUG) Data.setDummyValues();
             // Обчислення O1
             Data.calculateO(Data.THREAD_1);
             // Сортування O1
@@ -368,7 +363,7 @@ class RunT2 implements Runnable {
             Data.monitor.in.done();
             // Чекати на введення
             Data.monitor.in.waitFor();
-            Data.setDummyValues();
+            if (Data.DEBUG) Data.setDummyValues();
             // Обчислення O2
             Data.calculateO(Data.THREAD_2);
             // Сортування O2
@@ -407,7 +402,7 @@ class RunT3 implements Runnable {
         try {
             // Чекати на введення
             Data.monitor.in.waitFor();
-            Data.setDummyValues();
+            if (Data.DEBUG) Data.setDummyValues();
             // Обчислення O3
             Data.calculateO(Data.THREAD_3);
             // Сортування O3
@@ -453,7 +448,7 @@ class RunT4 implements Runnable {
             Data.monitor.in.done();
             // Чекати на введення
             Data.monitor.in.waitFor();
-            Data.setDummyValues();
+            if (Data.DEBUG) Data.setDummyValues();
             // Обчислення O4
             Data.calculateO(Data.THREAD_4);
             // Сортування O4
