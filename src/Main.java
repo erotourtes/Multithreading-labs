@@ -244,8 +244,12 @@ class Data {
         public CountDown sortSecondHalf = new CountDown(1);
         public CountDown sortSecondPart = new CountDown(1);
         public CountDown sortDone = new CountDown(1);
-        public CountDown a = new CountDown(AMOUNT_OF_THREADS);
+        public CountDown á = new CountDown(AMOUNT_OF_THREADS);
         public CountDown out = new CountDown(AMOUNT_OF_THREADS - 1);
+
+        public void addDeltaToA(int delta) {
+            a.addSync(delta);
+        }
 
         public static class CountDown {
             private int count;
@@ -334,11 +338,11 @@ class RunT1 implements Runnable {
             // Обчислення a1
             var a1 = Data.B.dotProduct(Data.Z, Data.THREAD_1);
             // Сумування a (КД1)
-            Data.a.addSync(a1);
+            Data.monitor.addDeltaToA(a1);
             // Сигнал завершення сумування
-            Data.monitor.a.done();
+            Data.monitor.á.done();
             // Чекати завершення сумування
-            Data.monitor.a.waitFor();
+            Data.monitor.á.waitFor();
             // Обчислення V1
             Data.calculate(Data.a.get(), Data.THREAD_1);
             // Сигнал завершення обчислень
@@ -375,11 +379,11 @@ class RunT2 implements Runnable {
             // Обчислення a1
             var a2 = Data.B.dotProduct(Data.Z, Data.THREAD_2);
             // Сумування a (КД1)
-            Data.a.addSync(a2);
+            Data.monitor.addDeltaToA(a2);
             // Сигнал завершення сумування
-            Data.monitor.a.done();
+            Data.monitor.á.done();
             // Чекати завершення сумування
-            Data.monitor.a.waitFor();
+            Data.monitor.á.waitFor();
             // Обчислення V2
             Data.calculate(Data.a.get(), Data.THREAD_2);
             // Чекати завершення обчислень
@@ -418,11 +422,11 @@ class RunT3 implements Runnable {
             // Обчислення a3
             var a3 = Data.B.dotProduct(Data.Z, Data.THREAD_3);
             // Сумування a (КД1)
-            Data.a.addSync(a3);
+            Data.monitor.addDeltaToA(a3);
             // Сигнал завершення сумування
-            Data.monitor.a.done();
+            Data.monitor.á.done();
             // Чекати завершення сумування
-            Data.monitor.a.waitFor();
+            Data.monitor.á.waitFor();
             // Обчислення V3
             Data.calculate(Data.a.get(), Data.THREAD_3);
             // Сигнал завершення обчислень
@@ -460,11 +464,11 @@ class RunT4 implements Runnable {
             // Обчислення a4
             var a4 = Data.B.dotProduct(Data.Z, Data.THREAD_4);
             // Сумування a (КД1)
-            Data.a.addSync(a4);
+            Data.monitor.addDeltaToA(a4);
             // Сигнал завершення сумування
-            Data.monitor.a.done();
+            Data.monitor.á.done();
             // Чекати завершення сумування
-            Data.monitor.a.waitFor();
+            Data.monitor.á.waitFor();
             // Обчислення V4
             Data.calculate(Data.a.get(), Data.THREAD_4);
             // Сигнал завершення обчислень
