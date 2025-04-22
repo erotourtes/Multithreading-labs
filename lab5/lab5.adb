@@ -107,7 +107,7 @@ procedure Lab5 is
    task T2 is
       pragma Storage_Size (73000000);
       entry T1Data (C_in : in VectorN);
-      entry Result (Oh : in VectorH; Mh : in VectorH);
+      entry Result (o_in : in Integer; m_in : in Integer);
       entry T3Data
         (MZ_in : in MatrixNxN; D_in : in VectorN; MR_in : in MatrixNxN);
    end T2;
@@ -133,7 +133,7 @@ procedure Lab5 is
       C, D     : VectorN;
       MX       : MatrixNxN;
       MZh, MRh : MatrixNxH;
-      Oh, Mh   : VectorH;
+      o, m     : Integer;
    begin
       Text_IO.Put_Line ("T1 is started");
 
@@ -159,11 +159,11 @@ procedure Lab5 is
       end Data;
 
       -- Обчислення
-      Oh := mulVxMA (C, MZh);
-      Mh := mulVxMA (D, mulMAxMA (MX, MRh));
+      o := minV (mulVxMA (C, MZh));
+      m := maxV (mulVxMA (D, mulMAxMA (MX, MRh)));
 
       -- Передати Т2
-      T2.Result (Oh, Mh);
+      T2.Result (o_in => o, m_in => m);
 
       Text_IO.Put_Line ("T1 is ended");
    end T1;
@@ -222,12 +222,13 @@ procedure Lab5 is
       o := minV (Oh);
       m := maxV (Mh);
 
-      -- Прийняти Oн, Mн
+      -- Прийняти oн, mн
       for i in 1 .. P - 1 loop
-         accept Result (Oh : in VectorH; Mh : in VectorH) do
-            o := Integer'Min (o, minV (Oh));
-            m := Integer'Max (m, maxV (Mh));
-
+         accept Result (o_in : in Integer; m_in : in Integer) do
+            -- KP1
+            o := Integer'Min (o, o_in);
+            -- KP1
+            m := Integer'Max (m, m_in);
          end Result;
       end loop;
 
@@ -240,7 +241,7 @@ procedure Lab5 is
    task body T3 is
       C, D       : VectorN;
       MR, MZ, MX : MatrixNxN;
-      Oh, Mh     : VectorH;
+      o, m       : Integer;
    begin
       Text_IO.Put_Line ("T3 is started");
 
@@ -263,24 +264,20 @@ procedure Lab5 is
       end Data;
 
       -- Обчислення
-      Oh := mulVxMA (C, getSubmatrix (MZ, 3));
-      Mh := mulVxMA (D, mulMAxMA (MX, getSubmatrix (MR, 3)));
+      o := minV (mulVxMA (C, getSubmatrix (MZ, 3)));
+      m := maxV (mulVxMA (D, mulMAxMA (MX, getSubmatrix (MR, 3))));
 
       -- Передати Т2
-      T2.Result (Oh, Mh);
+      T2.Result (o_in => o, m_in => m);
 
       Text_IO.Put_Line ("T3 is ended");
    end T3;
 
    task body TR is
-      C   : VectorN;
-      MX  : MatrixNxN;
-      MZh : MatrixNxH;
-      D   : VectorN;
-      MRh : MatrixNxH;
-
-      Oh : VectorH;
-      Mh : VectorH;
+      C, D     : VectorN;
+      MX       : MatrixNxN;
+      MZh, MRh : MatrixNxH;
+      o, m     : Integer;
    begin
       Text_IO.Put_Line ("T" & format (ThreadNum) & " is started");
 
@@ -300,11 +297,11 @@ procedure Lab5 is
       end Data;
 
       -- Обчислення
-      Oh := mulVxMA (C, MZh);
-      Mh := mulVxMA (D, mulMAxMA (MX, MRh));
+      o := minV (mulVxMA (C, MZh));
+      m := maxV (mulVxMA (D, mulMAxMA (MX, MRh)));
 
       -- Передати Т2
-      T2.Result (Oh, Mh);
+      T2.Result (o_in => o, m_in => m);
 
       Text_IO.Put_Line ("T" & format (ThreadNum) & " is ended");
    end TR;
