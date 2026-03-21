@@ -1,0 +1,8 @@
+
+services:
+
+  database:
+    image: buildo/h2database:2020-12-11
+    ports:
+        - "8082:8082"
+        - "9092:9092"
